@@ -1,0 +1,26 @@
+# Игнориране на чувствителни файлове
+.env
+postman/CashDeskModule.postman_environment.json
+
+
+# Игнориране на Maven build директории
+target/
+
+# Игнориране на временни файлове, генерирани от приложението
+balances.txt
+transactions.txt
+
+# Игнориране на IDE файлове
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# Игнориране на временни файлове
+*.log
+
+# Игнориране на Maven wrapper файлове (по желание)
+.mvn/
+mvnw
+mvnw.cmd

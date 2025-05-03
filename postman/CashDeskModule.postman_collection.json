@@ -1,0 +1,91 @@
+{
+  "info": {
+    "name": "CashDeskModule",
+    "_postman_id": "c3b5f8e4-9f2d-4e1a-8c7a-5d6e7f8a9b0c",
+    "description": "Postman collection for Cash Desk Module API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Deposit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "FIB-X-AUTH",
+            "value": "{{apiKey}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"cashierName\": \"MARTINA\",\n    \"operationType\": \"DEPOSIT\",\n    \"currency\": \"BGN\",\n    \"amount\": 600,\n    \"denominations\": \"10x10;50x10\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/cash-operation",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "cash-operation"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Withdraw",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "FIB-X-AUTH",
+            "value": "{{apiKey}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"cashierName\": \"MARTINA\",\n    \"operationType\": \"WITHDRAW\",\n    \"currency\": \"EUR\",\n    \"amount\": 500,\n    \"denominations\": \"50x10\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/cash-operation",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "cash-operation"]
+        }
+      },
+      "гід": []
+    },
+    {
+      "name": "Get Balance",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "FIB-X-AUTH",
+            "value": "{{apiKey}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/cash-balance?cashier=MARTINA",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "cash-balance"],
+          "query": [
+            {
+              "key": "cashier",
+              "value": "MARTINA"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
