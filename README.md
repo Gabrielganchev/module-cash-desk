@@ -26,7 +26,7 @@ Before running the project, ensure you have the following installed:
 A simple Spring Boot application for cash operations.
 
 ## Setup
-1. Clone the repo: `git clone https://github.com/<your-username>/module-cash-desk.git`
+1. Clone the repo: `git clone https://github.com/Gabrielganchev/module-cash-desk.git`
 2. Build: `mvn clean install`
 3. Configure the API key:
     - Create a `.env` file in the project root.
