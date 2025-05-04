@@ -1,6 +1,7 @@
 package com.fibank.module_cash_desk.service;
 
 import com.fibank.module_cash_desk.model.CashBalanceResponse;
+import com.fibank.module_cash_desk.model.CashBase;
 import com.fibank.module_cash_desk.model.CashOperationRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,233 +10,257 @@ import org.springframework.stereotype.Component;
 import java.io.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
-// клас за управление на касови операции и баланси
 @Component
 public class Storage {
     private static final Logger logger = LoggerFactory.getLogger(Storage.class);
-    private static final String TRANSACTIONS_FILE = "transactions.txt";
-    private static final String BALANCES_FILE = "balances.txt";
+    private static final String DEFAULT_BALANCES_FILE = "balances.txt";
+    private static final String DEFAULT_TRANSACTIONS_FILE = "transactions.txt";
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final List<String> SUPPORTED_CURRENCIES = List.of("BGN", "EUR");
-    private static final List<String> SUPPORTED_OPERATIONS = List.of("DEPOSIT", "WITHDRAW");
+    private static final List<String> SUPPORTED_CASHIERS = List.of("MARTINA", "PETER", "LINDA");
+    private static final List<String> SUPPORTED_OPERATIONS = List.of("DEPOSIT", "WITHDRAWAL");
+    private static final Map<String, Map<String, Map<Integer, Integer>>> INITIAL_DENOMINATIONS = Map.of(
+            "MARTINA", Map.of("BGN", Map.of(10, 50, 50, 10), "EUR", Map.of(20, 50, 100, 10)),
+            "PETER", Map.of("BGN", Map.of(10, 50, 50, 10), "EUR", Map.of(20, 50, 100, 10)),
+            "LINDA", Map.of("BGN", Map.of(10, 50, 50, 10), "EUR", Map.of(20, 50, 100, 10))
+    );
 
-    private Map<String, Map<String, Double>> balances;
-    private Map<String, Map<String, String>> denominations;
+    private Map<String, Map<String, Map<Integer, Integer>>> denominations;
+
+    private final String balancesFile;
+    private final String transactionsFile;
 
     public Storage() {
-        balances = new HashMap<>();
-        denominations = new HashMap<>();
+        this(DEFAULT_BALANCES_FILE, DEFAULT_TRANSACTIONS_FILE);
+    }
+
+    public Storage(String balancesFile, String transactionsFile) {
+        this.balancesFile = balancesFile;
+        this.transactionsFile = transactionsFile;
+        this.denominations = new HashMap<>();
         initializeCashiers();
         loadBalances();
     }
 
     private void initializeCashiers() {
-        List<String> cashiers = List.of("MARTINA", "PETER", "LINDA");
-        for (String cashier : cashiers) {
-            Map<String, Double> cashierBalances = new HashMap<>();
-            cashierBalances.put("BGN", 1000.0);
-            cashierBalances.put("EUR", 2000.0);
-            balances.put(cashier, cashierBalances);
-
-            Map<String, String> cashierDenominations = new HashMap<>();
-            cashierDenominations.put("BGN", "10x50;50x10");
-            cashierDenominations.put("EUR", "10x100;50x20");
-            denominations.put(cashier, cashierDenominations);
+        for (String cashier : SUPPORTED_CASHIERS) {
+            Map<String, Map<Integer, Integer>> cashierDenoms = new HashMap<>();
+            Map<String, Map<Integer, Integer>> initial = INITIAL_DENOMINATIONS.get(cashier);
+            for (Map.Entry<String, Map<Integer, Integer>> currencyEntry : initial.entrySet()) {
+                cashierDenoms.put(currencyEntry.getKey(), new HashMap<>(currencyEntry.getValue()));
+            }
+            denominations.put(cashier, cashierDenoms);
         }
         saveBalances();
     }
 
-    // обработка на депозит или теглене с валидации
     public void performOperation(CashOperationRequest request) {
         String cashier = request.getCashierName();
         String currency = request.getCurrency();
-        double amount = request.getAmount();
         String operationType = request.getOperationType();
-        String denominationStr = request.getDenominations();
+        Map<Integer, Integer> operationDenoms = request.getDenominations();
 
-        // проверка за поддържана валута
+        if (!SUPPORTED_CASHIERS.contains(cashier)) {
+            throw new IllegalArgumentException("Invalid cashier: " + cashier);
+        }
         if (!SUPPORTED_CURRENCIES.contains(currency)) {
-            throw new IllegalArgumentException("Unsupported currency: " + currency + ". Supported currencies are: " + SUPPORTED_CURRENCIES);
+            throw new IllegalArgumentException("Unsupported currency: " + currency);
         }
-
-        // проверка за поддържана операция
         if (!SUPPORTED_OPERATIONS.contains(operationType)) {
-            throw new IllegalArgumentException("Unsupported operation: " + operationType + ". Supported operations are: " + SUPPORTED_OPERATIONS);
+            throw new IllegalArgumentException("Unsupported operation: " + operationType);
         }
 
-        Map<String, Double> cashierBalances = balances.get(cashier);
-        double currentBalance = cashierBalances.get(currency);
+        Map<String, Map<Integer, Integer>> cashierDenoms = denominations.get(cashier);
+        Map<Integer, Integer> currentDenoms = cashierDenoms.computeIfAbsent(currency, k -> new HashMap<>());
 
-        // при депозит проверяваме дали сумата съвпада с деноминациите
         if (operationType.equals("DEPOSIT")) {
-            validateDenominations(amount, denominationStr);
-            cashierBalances.put(currency, currentBalance + amount);
-        }
-        // при теглене проверяваме дали има достатъчно пари
-        else if (operationType.equals("WITHDRAW")) {
-            if (currentBalance < amount) {
-                throw new IllegalArgumentException("Insufficient funds for " + cashier + ". Available: " + currentBalance + " " + currency + ", requested: " + amount);
+            operationDenoms.forEach((denom, count) ->
+                    currentDenoms.merge(denom, count, Integer::sum));
+        } else if (operationType.equals("WITHDRAWAL")) {
+            for (Map.Entry<Integer, Integer> entry : operationDenoms.entrySet()) {
+                int denom = entry.getKey();
+                int requestedCount = entry.getValue();
+                int availableCount = currentDenoms.getOrDefault(denom, 0);
+                if (availableCount < requestedCount) {
+                    throw new IllegalArgumentException("Insufficient " + denom + " " + currency + " notes for withdrawal");
+                }
+                currentDenoms.put(denom, availableCount - requestedCount);
             }
-            cashierBalances.put(currency, currentBalance - amount);
         }
 
-        denominations.get(cashier).put(currency, denominationStr);
+        cashierDenoms.put(currency, currentDenoms);
+        denominations.put(cashier, cashierDenoms);
 
         saveBalances();
         saveTransaction(request);
-        logger.info("{} performed: {} {} {} by {}", operationType, amount, currency, cashier);
-    }
-
-    // валидация на деноминациите спрямо сумата
-    private void validateDenominations(double amount, String denominationStr) {
-        if (denominationStr == null || denominationStr.isEmpty()) {
-            throw new IllegalArgumentException("Denominations cannot be empty for deposit");
-        }
-
-        double calculatedAmount = 0;
-        String[] pairs = denominationStr.split(";");
-        for (String pair : pairs) {
-            String[] parts = pair.split("x");
-            if (parts.length != 2) {
-                throw new IllegalArgumentException("Invalid denomination format: " + pair + ". Expected format: valueXcount");
-            }
-            try {
-                double value = Double.parseDouble(parts[0]);
-                int count = Integer.parseInt(parts[1]);
-                calculatedAmount += value * count;
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid denomination numbers in: " + pair);
-            }
-        }
-
-        if (Math.abs(calculatedAmount - amount) > 0.01) {
-            throw new IllegalArgumentException("Amount " + amount + " does not match the sum of denominations " + calculatedAmount);
-        }
+        logger.info("{} performed: {} {} by {}", operationType, operationDenoms, currency, cashier);
     }
 
     public List<CashBalanceResponse> getBalances(String cashier, String dateFrom, String dateTo) {
-        LocalDateTime from = dateFrom != null ? LocalDateTime.parse(dateFrom.replace("T", " ").replace("Z", ""), formatter) : null;
-        LocalDateTime to = dateTo != null ? LocalDateTime.parse(dateTo.replace("T", " ").replace("Z", ""), formatter) : null;
+        logger.debug("Getting balances for cashier: {}, dateFrom: {}, dateTo: {}", cashier, dateFrom, dateTo);
 
-        if (from == null && to == null) {
-            List<CashBalanceResponse> responses = new ArrayList<>();
-            for (String c : balances.keySet()) {
-                if (cashier != null && !c.equals(cashier)) continue;
-                for (String currency : balances.get(c).keySet()) {
-                    CashBalanceResponse response = new CashBalanceResponse();
-                    response.setCashierName(c);
-                    response.setCurrency(currency);
-                    response.setBalance(balances.get(c).get(currency));
-                    response.setDenominations(denominations.get(c).get(currency));
-                    responses.add(response);
+        // Използвай текущите деноминации за баланс без дати
+        Map<String, Map<String, Map<Integer, Integer>>> tempDenoms;
+        if (dateFrom == null && dateTo == null) {
+            tempDenoms = new HashMap<>();
+            for (String c : SUPPORTED_CASHIERS) {
+                Map<String, Map<Integer, Integer>> cashierDenoms = denominations.getOrDefault(c, new HashMap<>());
+                Map<String, Map<Integer, Integer>> copiedDenoms = new HashMap<>();
+                for (Map.Entry<String, Map<Integer, Integer>> currencyEntry : cashierDenoms.entrySet()) {
+                    copiedDenoms.put(currencyEntry.getKey(), new HashMap<>(currencyEntry.getValue()));
                 }
+                tempDenoms.put(c, copiedDenoms);
             }
-            return responses;
-        }
+        } else {
+            // Исторически баланс с дати
+            LocalDateTime from = dateFrom != null ? LocalDateTime.parse(dateFrom.replace("T", " ").replace("Z", ""), formatter) : null;
+            LocalDateTime to = dateTo != null ? LocalDateTime.parse(dateTo.replace("T", " ").replace("Z", ""), formatter) : null;
 
-        Map<String, Map<String, Double>> tempBalances = new HashMap<>();
-        Map<String, Map<String, String>> tempDenominations = new HashMap<>();
-        for (String c : balances.keySet()) {
-            tempBalances.put(c, new HashMap<>(Map.of("BGN", 1000.0, "EUR", 2000.0)));
-            tempDenominations.put(c, new HashMap<>(Map.of("BGN", "10x50;50x10", "EUR", "10x100;50x20")));
-        }
+            tempDenoms = new HashMap<>();
+            for (String c : SUPPORTED_CASHIERS) {
+                Map<String, Map<Integer, Integer>> cashierDenoms = new HashMap<>();
+                Map<String, Map<Integer, Integer>> initial = INITIAL_DENOMINATIONS.get(c);
+                for (Map.Entry<String, Map<Integer, Integer>> currencyEntry : initial.entrySet()) {
+                    cashierDenoms.put(currencyEntry.getKey(), new HashMap<>(currencyEntry.getValue()));
+                }
+                tempDenoms.put(c, cashierDenoms);
+            }
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(TRANSACTIONS_FILE))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
-                LocalDateTime timestamp = LocalDateTime.parse(parts[0], formatter);
-                String c = parts[1];
-                String operation = parts[2];
-                String currency = parts[3];
-                double amount = Double.parseDouble(parts[4]);
-                String denom = parts[5];
+            try (BufferedReader reader = new BufferedReader(new FileReader(transactionsFile))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.split(",");
+                    LocalDateTime timestamp = LocalDateTime.parse(parts[0], formatter);
+                    String c = parts[1];
+                    String operation = parts[2];
+                    String currency = parts[3];
+                    String denomStr = parts[4];
 
-                if ((from == null || !timestamp.isBefore(from)) && (to == null || !timestamp.isAfter(to))) {
-                    Map<String, Double> cashierBalances = tempBalances.get(c);
-                    double currentBalance = cashierBalances.get(currency);
-                    if (operation.equals("DEPOSIT")) {
-                        cashierBalances.put(currency, currentBalance + amount);
-                    } else if (operation.equals("WITHDRAW")) {
-                        cashierBalances.put(currency, currentBalance - amount);
+                    if ((from == null || !timestamp.isBefore(from)) && (to == null || !timestamp.isAfter(to))) {
+                        Map<Integer, Integer> operationDenoms = parseDenominations(denomStr);
+                        Map<Integer, Integer> currentDenoms = tempDenoms.get(c).get(currency);
+                        if (operation.equals("DEPOSIT")) {
+                            operationDenoms.forEach((denom, count) ->
+                                    currentDenoms.merge(denom, count, Integer::sum));
+                        } else if (operation.equals("WITHDRAWAL")) {
+                            operationDenoms.forEach((denom, count) ->
+                                    currentDenoms.merge(denom, -count, Integer::sum));
+                        }
+                        tempDenoms.get(c).put(currency, currentDenoms);
                     }
-                    tempDenominations.get(c).put(currency, denom);
                 }
+            } catch (IOException e) {
+                logger.error("Error reading transactions", e);
             }
-        } catch (IOException e) {
-            logger.error("Error reading transactions", e);
         }
 
         List<CashBalanceResponse> responses = new ArrayList<>();
-        for (String c : tempBalances.keySet()) {
+        for (String c : tempDenoms.keySet()) {
             if (cashier != null && !c.equals(cashier)) continue;
-            for (String currency : tempBalances.get(c).keySet()) {
-                CashBalanceResponse response = new CashBalanceResponse();
-                response.setCashierName(c);
-                response.setCurrency(currency);
-                response.setBalance(tempBalances.get(c).get(currency));
-                response.setDenominations(tempDenominations.get(c).get(currency));
-                responses.add(response);
+            CashBalanceResponse response = new CashBalanceResponse();
+            response.setCashierName(c);
+            Map<String, CashBase> balancesMap = new HashMap<>();
+            for (String currency : tempDenoms.get(c).keySet()) {
+                CashBase cashBase = new CashBase() {};
+                cashBase.setCurrency(currency);
+                cashBase.setDenominations(new HashMap<>(tempDenoms.get(c).get(currency)));
+                balancesMap.put(currency, cashBase);
             }
+            response.setBalances(balancesMap);
+            responses.add(response);
         }
+        logger.debug("Returning balances: {}", responses);
         return responses;
     }
 
     private void saveBalances() {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(BALANCES_FILE))) {
-            for (String cashier : balances.keySet()) {
-                for (String currency : balances.get(cashier).keySet()) {
-                    writer.write(String.format("%s,%s,%.2f,%s",
-                            cashier, currency, balances.get(cashier).get(currency),
-                            denominations.get(cashier).get(currency)));
-                    writer.newLine();
+        logger.debug("Saving balances to {}", balancesFile);
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(balancesFile))) {
+            for (String cashier : denominations.keySet()) {
+                for (String currency : denominations.get(cashier).keySet()) {
+                    for (Map.Entry<Integer, Integer> entry : denominations.get(cashier).get(currency).entrySet()) {
+                        writer.write(String.format("%s|%s|%d|%d%n", cashier, currency, entry.getKey(), entry.getValue()));
+                    }
                 }
             }
+            logger.debug("Balances saved successfully");
         } catch (IOException e) {
             logger.error("Error saving balances", e);
         }
     }
 
     private void loadBalances() {
-        File file = new File(BALANCES_FILE);
+        logger.debug("Loading balances from {}", balancesFile);
+        File file = new File(balancesFile);
         if (!file.exists()) {
+            logger.info("Balances file does not exist, initializing new file");
             saveBalances();
             return;
         }
-        try (BufferedReader reader = new BufferedReader(new FileReader(BALANCES_FILE))) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(balancesFile))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
+                String[] parts = line.split("\\|");
+                if (parts.length != 4) {
+                    logger.warn("Invalid line in balances file: " + line);
+                    continue;
+                }
                 String cashier = parts[0];
                 String currency = parts[1];
-                double balance = Double.parseDouble(parts[2]);
-                String denom = parts[3];
-                balances.get(cashier).put(currency, balance);
-                denominations.get(cashier).put(currency, denom);
+                try {
+                    int denom = Integer.parseInt(parts[2]);
+                    int count = Integer.parseInt(parts[3]);
+                    denominations.computeIfAbsent(cashier, k -> new HashMap<>())
+                            .computeIfAbsent(currency, k -> new HashMap<>())
+                            .put(denom, count);
+                } catch (NumberFormatException e) {
+                    logger.warn("Invalid number format in balances file: " + line, e);
+                }
             }
+            logger.debug("Balances loaded successfully");
         } catch (IOException e) {
             logger.error("Error loading balances", e);
         }
     }
 
     private void saveTransaction(CashOperationRequest request) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(TRANSACTIONS_FILE, true))) {
-            String line = String.format("%s,%s,%s,%s,%.2f,%s",
+        logger.debug("Saving transaction for {} to {}", request.getCashierName(), transactionsFile);
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(transactionsFile, true))) {
+            String denomStr = request.getDenominations().entrySet().stream()
+                    .map(entry -> entry.getKey() + "x" + entry.getValue())
+                    .collect(Collectors.joining(";"));
+            String line = String.format("%s,%s,%s,%s,%s",
                     LocalDateTime.now().format(formatter),
                     request.getCashierName(),
                     request.getOperationType(),
                     request.getCurrency(),
-                    request.getAmount(),
-                    request.getDenominations());
+                    denomStr);
             writer.write(line);
             writer.newLine();
+            logger.debug("Transaction saved: {}", line);
         } catch (IOException e) {
             logger.error("Error saving transaction", e);
         }
+    }
+
+    private Map<Integer, Integer> parseDenominations(String denomStr) {
+        Map<Integer, Integer> result = new HashMap<>();
+        String[] pairs = denomStr.split(";");
+        for (String pair : pairs) {
+            String[] parts = pair.split("x");
+            if (parts.length == 2) {
+                try {
+                    int denom = Integer.parseInt(parts[0]);
+                    int count = Integer.parseInt(parts[1]);
+                    result.put(denom, count);
+                } catch (NumberFormatException e) {
+                    logger.error("Invalid denomination format: " + pair, e);
+                }
+            }
+        }
+        return result;
     }
 }

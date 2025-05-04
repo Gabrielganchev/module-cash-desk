@@ -24,15 +24,23 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"cashierName\": \"MARTINA\",\n    \"operationType\": \"DEPOSIT\",\n    \"currency\": \"BGN\",\n    \"amount\": 600,\n    \"denominations\": \"10x10;50x10\"\n}"
+          "raw": "{\n    \"cashierName\": \"MARTINA\",\n    \"operationType\": \"DEPOSIT\",\n    \"currency\": \"BGN\",\n    \"denominations\": {\"10\": 5, \"50\": 1}\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/cash-operation",
           "host": ["{{baseUrl}}"],
           "path": ["api", "v1", "cash-operation"]
-        }
+        },
+        "description": "Deposits 100 BGN (5x10 + 1x50) for MARTINA"
       },
-      "response": []
+      "response": [
+        {
+          "name": "Success",
+          "status": "OK",
+          "code": 200,
+          "body": "\"Operation successful\""
+        }
+      ]
     },
     {
       "name": "Withdraw",
@@ -52,15 +60,23 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"cashierName\": \"MARTINA\",\n    \"operationType\": \"WITHDRAW\",\n    \"currency\": \"EUR\",\n    \"amount\": 500,\n    \"denominations\": \"50x10\"\n}"
+          "raw": "{\n    \"cashierName\": \"MARTINA\",\n    \"operationType\": \"WITHDRAWAL\",\n    \"currency\": \"EUR\",\n    \"denominations\": {\"20\": 5}\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/cash-operation",
           "host": ["{{baseUrl}}"],
           "path": ["api", "v1", "cash-operation"]
-        }
+        },
+        "description": "Withdraws 100 EUR (5x20) for MARTINA"
       },
-      "гід": []
+      "response": [
+        {
+          "name": "Success",
+          "status": "OK",
+          "code": 200,
+          "body": "\"Operation successful\""
+        }
+      ]
     },
     {
       "name": "Get Balance",
@@ -83,9 +99,58 @@
               "value": "MARTINA"
             }
           ]
-        }
+        },
+        "description": "Gets current balance for MARTINA"
       },
-      "response": []
+      "response": [
+        {
+          "name": "Success",
+          "status": "OK",
+          "code": 200,
+          "body": "[\n  {\n    \"cashierName\": \"MARTINA\",\n    \"balances\": {\n      \"BGN\": {\n        \"currency\": \"BGN\",\n        \"denominations\": {\"10\": 50, \"50\": 10},\n        \"total\": 1000\n      },\n      \"EUR\": {\n        \"currency\": \"EUR\",\n        \"denominations\": {\"20\": 50, \"100\": 10},\n        \"total\": 2000\n      }\n    }\n  }\n]"
+        }
+      ]
+    },
+    {
+      "name": "Get Historical Balance",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "FIB-X-AUTH",
+            "value": "{{apiKey}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/cash-balance?cashier=MARTINA&dateFrom=2025-05-01T00:00:00Z&dateTo=2025-05-02T23:59:59Z",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "cash-balance"],
+          "query": [
+            {
+              "key": "cashier",
+              "value": "MARTINA"
+            },
+            {
+              "key": "dateFrom",
+              "value": "2025-05-01T00:00:00Z"
+            },
+            {
+              "key": "dateTo",
+              "value": "2025-05-02T23:59:59Z"
+            }
+          ]
+        },
+        "description": "Gets historical balance for MARTINA between May 1 and May 2, 2025"
+      },
+      "response": [
+        {
+          "name": "Success",
+          "status": "OK",
+          "code": 200,
+          "body": "[\n  {\n    \"cashierName\": \"MARTINA\",\n    \"balances\": {\n      \"BGN\": {\n        \"currency\": \"BGN\",\n        \"denominations\": {\"10\": 50, \"50\": 10},\n        \"total\": 1000\n      },\n      \"EUR\": {\n        \"currency\": \"EUR\",\n        \"denominations\": {\"20\": 50, \"100\": 10},\n        \"total\": 2000\n      }\n    }\n  }\n]"
+        }
+      ]
     }
   ]
 }
