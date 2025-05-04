@@ -1,48 +1,59 @@
 
 # Cash Desk Module
 
-## Features
-- REST API for depositing and withdrawing cash.
-- API key validation for secure requests.
-- Storage of balances and transactions in `balances.txt` and `transactions.txt`.
-- Unit tests to validate business logic.
-- Postman collection for API testing.
+## Описание
+Spring Boot приложение за управление на касови операции (депозити и тегления) и проверка на баланси чрез REST API. Поддържа деноминации за BGN (10, 50) и EUR (20, 100) за касиери (MARTINA, PETER, LINDA).
 
-## Technologies
-- **Spring Boot**: For building the REST API.
-- **Maven**: For dependency management.
-- **Java 17**: Programming language.
-- **Postman**: For API testing.
-- **SLF4J**: For logging.
+## Функционалности
+- **REST API**:
+   - POST `/api/v1/cash-operation`: Депозит или теглене на пари.
+   - GET `/api/v1/cash-balance`: Проверка на баланс (с опционални филтри: `cashier`, `dateFrom`, `dateTo`).
+- **Сигурност**: Задължителен `FIB-X-AUTH` заглавка с API ключ.
+- **Съхранение**: Баланси в `balances.txt` (формат: `cashier_name|currency|denomination|count`) и транзакции в `transactions.txt`.
+- **Тестове**: Unit тестове за бизнес логиката.
+- **Postman**: Колекция за тестване на API.
 
-## Prerequisites
-Before running the project, ensure you have the following installed:
-- **Java 17**: Required to run the application.
-- **Maven**: For building and running the project.
-- **Git**: To clone the repository.
-- **Postman** (optional): For testing the API.
+## Технологии
+- **Spring Boot**: За REST API.
+- **Maven**: За управление на зависимости.
+- **Java 17**: Език за програмиране.
+- **Postman**: За тестване на API.
+- **SLF4J**: За логиране.
 
+## Изисквания
+- **Java 17**
+- **Maven**
+- **Git**
+- **Postman** (по желание)
 
-A simple Spring Boot application for cash operations.
+## Инсталация
+1. Клонирай репозиториума: `git clone https://github.com/Gabrielganchev/module-cash-desk.git`
+2. Инсталирай: `mvn clean install`
+3. Конфигурирай API ключа:
+   - Създай `src/main/resources/application.properties`.
+   - Добави: `API_KEY=put-the-api-key`
+   - Файлът е включен в `.gitignore`, за да не се качва в Git.
+4. Стартирай: `mvn spring-boot:run`
 
-## Setup
-1. Clone the repo: `git clone https://github.com/<your-username>/module-cash-desk.git`
-2. Build: `mvn clean install`
-3. Configure the API key:
-    - Create a `.env` file in the project root.
-    - Add the following line: `API_KEY=your-api-key`
-    - You will find the `Api-Key` in the file that was sent.
-    - See `.env.example` for reference.
-    - Load the `.env` file into your environment:
-        - On Linux/Mac: `export $(cat .env | xargs)`
-        - On Windows (Command Prompt): `set API_KEY=your-api-key`
-        - On Windows (PowerShell): `$env:API_KEY="your-api-key"`
-      
-4. Run: `mvn spring-boot:run`
-
-## API
-- **POST /api/v1/cash-operation**: Deposit or withdraw
-- **GET /api/v1/cash-balance**: Check balance 
+## API Ендпойнти
+- **POST /api/v1/cash-operation** (`CashOperationController`):
+   - Тяло: `CashOperationRequest` (напр. `{"cashierName": "MARTINA", "operationType": "DEPOSIT", "currency": "BGN", "denominations": {"10": 5}}`)
+   - Заглавка: `FIB-X-AUTH:put-the-api-key`
+- **GET /api/v1/cash-balance** (`CashBalanceController`):
+   - Параметри: `cashier` (по желание), `dateFrom` (по желание), `dateTo` (по желание)
+   - Заглавка: `FIB-X-AUTH:put-the-api-key`
 
 ## Postman
-Import `postman/CashDeskModule.postman_collection.json` and `postman/CashDeskModule.postman_environment.json` to test the API.
+Импортирай `postman/CashDeskModule.postman_collection.json` и `postman/CashDeskModule.postman_environment.json` за тестване на API.
+
+## Тестове
+Unit тестове в `src/test/java/com/fibank/module_cash_desk/StorageTest.java` покриват:
+- Инициализация на баланси.
+- Депозити и тегления с деноминации.
+- Проверка на баланс.
+
+Изпълни с: `mvn test`
+
+## Файлове
+- **balances.txt**: Съхранява баланси (напр. `MARTINA|BGN|10|50`).
+- **transactions.txt**: Логира транзакции (напр. `2025-05-03 12:00:00,MARTINA,DEPOSIT,BGN,10x5`).

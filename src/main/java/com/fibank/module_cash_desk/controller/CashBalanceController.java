@@ -1,10 +1,7 @@
 package com.fibank.module_cash_desk.controller;
 
-
 import com.fibank.module_cash_desk.model.CashBalanceResponse;
-import com.fibank.module_cash_desk.model.CashOperationRequest;
 import com.fibank.module_cash_desk.service.Storage;
-import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,45 +11,40 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-
-// API контролер за касови операции и баланси
 @RestController
-@RequestMapping("/api/v1")
-public class CashController {
-    private static final Logger logger = LoggerFactory.getLogger(CashController.class);
+@RequestMapping("/api/v1/cash-balance")
+public class CashBalanceController {
+    private static final Logger logger = LoggerFactory.getLogger(CashBalanceController.class);
     public static final String API_KEY_HEADER = "FIB-X-AUTH";
     private final Storage storage;
-
 
     @Value("${API_KEY}")
     private String API_KEY;
 
-    public CashController(Storage storage) {
+    public CashBalanceController(Storage storage) {
         this.storage = storage;
     }
 
-    @PostMapping("/cash-operation")
-    public ResponseEntity<String> performOperation(
-            @RequestHeader(API_KEY_HEADER) String apiKey,
-            @Valid @RequestBody CashOperationRequest request) {
-        if (!API_KEY.equals(apiKey)) {
-            logger.warn("Invalid API key");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid API key");
-        }
-        storage.performOperation(request);
-        return ResponseEntity.ok("Operation successful");
-    }
-
-    @GetMapping("/cash-balance")
+    @GetMapping
     public ResponseEntity<List<CashBalanceResponse>> getBalance(
             @RequestHeader(API_KEY_HEADER) String apiKey,
             @RequestParam(required = false) String cashier,
             @RequestParam(required = false) String dateFrom,
             @RequestParam(required = false) String dateTo) {
         if (!API_KEY.equals(apiKey)) {
-            logger.warn("Invalid API key");
+            logger.warn("Invalid API key for balance query");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return ResponseEntity.ok(storage.getBalances(cashier, dateFrom, dateTo));
+        try {
+            List<CashBalanceResponse> balances = storage.getBalances(cashier, dateFrom, dateTo);
+            logger.info("Balance retrieved for cashier: {}, from: {}, to: {}", cashier, dateFrom, dateTo);
+            return ResponseEntity.ok(balances);
+        } catch (IllegalArgumentException e) {
+            logger.error("Balance query failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(List.of());
+        } catch (Exception e) {
+            logger.error("Unexpected error during balance query", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(List.of());
+        }
     }
 }

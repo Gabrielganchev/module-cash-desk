@@ -1,6 +1,9 @@
 # Игнориране на чувствителни файлове
 .env
 postman/CashDeskModule.postman_environment.json
+src/main/resources/application.properties
+.env.example
+
 
 
 # Игнориране на Maven build директории
